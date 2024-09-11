@@ -139,7 +139,7 @@ class genshin(commands.Cog):
     async def shutup(self, ctx):
         """Remove yourself from the reminders pool."""
         if ctx.author.id in self.reminder_pool:
-            self.reminder_pool.remove("ctx.author.id")
+            self.reminder_pool.remove(ctx.author.id)
             if self.debug:print(f"{ctx.author.id} removed themselves from the reminders pool.")
             await ctx.reply("You are no longer part of the reminders pool.")
         else:
