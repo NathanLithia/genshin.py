@@ -3,6 +3,9 @@ from discord.ext import commands
 from discord.ext import tasks
 from datetime import datetime, timedelta, timezone
 import pytz
+import json
+import os.path
+import traceback
 
 class genshin(commands.Cog):
     """Genshin Utility Cog"""
@@ -14,6 +17,7 @@ class genshin(commands.Cog):
         self.cache_seconds = 0
         self.cache_mins    = 0
         self.cache_hours   = 0
+        self.genshin_pools_json = json.loads("{}")
 
         ###########################
         ### MODULE CONFIG START ###
@@ -90,6 +94,7 @@ class genshin(commands.Cog):
             self.finished_pool = []
             if self.announce_reset_loop:
                 await self.client.get_channel(self.announcement_channel_id).send(f"{self.GameName} {self.ServerRegion} server has reset <t:{int((datetime.now(timezone.utc).timestamp()))}:R>.")
+                self.write_pool()
         if self.debug:print(f"Querying Reset time, Result: {self.cache_hours}H {self.cache_mins}M {self.cache_seconds}S")
 
 
@@ -130,16 +135,21 @@ class genshin(commands.Cog):
         if ctx.author.id in self.reminder_pool:
             await ctx.reply("You are already a part of the reminders pool.")
         else:
-            self.reminder_pool.append(ctx.author.id)
-            if self.debug:print(f"{ctx.author.id} added themselves to the reminders pool.")
-            await ctx.reply("You are now part of the reminders pool.")
+            try:
+                self.reminder_pool.append(ctx.author.id)
+                self.write_pool()
+                if self.debug:print(f"{ctx.author.id} added themselves to the reminders pool.")
+                await ctx.reply("You are now part of the reminders pool.")
+            except Exception as e:
+                await ctx.reply(f'`🔴{type(e).__name__}` - {e}\n{traceback.format_exc()}')
 
 
     @commands.command(aliases=['stop', 'quiet'])
     async def shutup(self, ctx):
         """Remove yourself from the reminders pool."""
         if ctx.author.id in self.reminder_pool:
-            self.reminder_pool.remove("ctx.author.id")
+            self.reminder_pool.remove(ctx.author.id)
+            self.write_pool()
             if self.debug:print(f"{ctx.author.id} removed themselves from the reminders pool.")
             await ctx.reply("You are no longer part of the reminders pool.")
         else:
@@ -153,19 +163,41 @@ class genshin(commands.Cog):
             await ctx.reply("You have already finished your dailies.")
         else:
             self.finished_pool.append(ctx.author.id)
+            self.write_pool()
             await ctx.reply("Congratulations, You will be reminded again after the reset :)")
-
-
-    @commands.Cog.listener()
-    async def on_ready(self):
-        await self.set_status()
-        self.reset_loop.start()
-        self.reminder_loop.start()
 
 
     def cog_unload(self):
         self.us_reset_loop.cancel()
         self.reset_loop_status_task.cancel()
+
+
+    def read_pool(self):
+        if path('genshin.pools.json'):
+            with open('genshin.pools.json') as f:
+                self.genshin_pools_json = json.load(f)
+                self.reminder_pool = self.genshin_pools_json["reminder_pool"]
+                self.finished_pool = self.genshin_pools_json["finished_pool"]
+        else:
+            self.write_pool()
+
+
+    def write_pool(self):
+        with open('genshin.pools.json', 'w') as f:
+            json.dump(self.translate_pools(), f)
+
+
+    def translate_pools(self):
+        self.genshin_pools_json = json.loads('{"reminder_pool": '+str(self.reminder_pool)+',"finished_pool": '+str(self.finished_pool)+'}')
+        return self.genshin_pools_json
+
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        self.read_pool()
+        await self.set_status()
+        self.reset_loop.start()
+        self.reminder_loop.start()
 
 
 async def setup(client):
