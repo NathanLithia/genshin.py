@@ -4,7 +4,7 @@ from discord.ext import tasks
 from datetime import datetime, timedelta, timezone
 import pytz
 import json
-import os.path
+import os
 import traceback
 
 class genshin(commands.Cog):
@@ -168,12 +168,12 @@ class genshin(commands.Cog):
 
 
     def cog_unload(self):
-        self.us_reset_loop.cancel()
-        self.reset_loop_status_task.cancel()
+        self.reset_loop.cancel()
+        self.reminder_loop.cancel()
 
 
     def read_pool(self):
-        if path('genshin.pools.json'):
+        if os.path.exists('genshin.pools.json'):
             with open('genshin.pools.json') as f:
                 self.genshin_pools_json = json.load(f)
                 self.reminder_pool = self.genshin_pools_json["reminder_pool"]
@@ -194,10 +194,14 @@ class genshin(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        self.read_pool()
-        await self.set_status()
-        self.reset_loop.start()
-        self.reminder_loop.start()
+        try:
+            self.read_pool()
+            await self.set_status()
+            self.reset_loop.start()
+            self.reminder_loop.start()
+        except Exception as e:
+            print(f'{type(e).__name__} - {e}\n{traceback.format_exc()}')
+        
 
 
 async def setup(client):
